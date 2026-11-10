@@ -1,0 +1,71 @@
+
+name: TRUECRASHBET V6 - Daily Analyst + Website
+
+on:
+  schedule:
+    # Tous les jours à 04h00 UTC (05h00 au Congo)
+    - cron: "0 4 * * *"
+
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: truecrashbet-daily
+  cancel-in-progress: false
+
+jobs:
+  analyze-football:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      # 1. Télécharger le dépôt
+      - name: Télécharger le code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      # 2. Installer Python
+      - name: Installer Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # 3. Installer les dépendances
+      - name: Installer requests
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install requests
+
+      # 4. Exécuter le script TRUECRASHBET
+      - name: Lancer TRUECRASHBET V6
+        run: python main.py
+
+      # 5. Vérifier le fichier JSON
+      - name: Vérifier les pronostics du site
+        run: |
+          if [ ! -f public/pronostics.json ]; then
+            echo "ERREUR : fichier JSON introuvable"
+            exit 1
+          fi
+
+          python -m json.tool public/pronostics.json
+
+      # 6. Publier les pronostics sur GitHub
+      - name: Publier les pronostics TRUECRASHBET
+        run: |
+          git config user.name "TRUECRASHBET BOT"
+          git config user.email "actions@github.com"
+
+          git add public/pronostics.json
+
+          if git diff --cached --quiet; then
+            echo "Aucune modification du fichier JSON."
+          else
+            git commit -m "Update TRUECRASHBET daily predictions"
+            git push origin HEAD:${GITHUB_REF_NAME}
+            echo "Publication réussie."
+          fi
